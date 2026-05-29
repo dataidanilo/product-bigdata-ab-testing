@@ -1,0 +1,41 @@
+from __future__ import annotations
+
+import pandas as pd
+
+
+def load_ga4_from_bigquery(start_date: str, end_date: str, limit_rows: int = 100000) -> pd.DataFrame:
+    """Load a simplified GA4 sample from BigQuery public data.
+
+    Requires authenticated Google Cloud credentials locally.
+    """
+    from google.cloud import bigquery
+
+    client = bigquery.Client()
+    query = f"""
+    SELECT
+      user_pseudo_id,
+      (SELECT value.int_value FROM UNNEST(event_params) WHERE key = 'ga_session_id') AS ga_session_id,
+      event_name,
+      event_timestamp,
+      event_date,
+      device.category AS device_category,
+      geo.country AS country,
+      traffic_source.source AS source,
+      ecommerce.purchase_revenue AS revenue
+    FROM `bigquery-public-data.ga4_obfuscated_sample_ecommerce.events_*`
+    WHERE _TABLE_SUFFIX BETWEEN '{start_date}' AND '{end_date}'
+    LIMIT {int(limit_rows)}
+    """
+    df = client.query(query).to_dataframe()
+    df["revenue"] = df["revenue"].fillna(0.0)
+    df["ga_session_id"] = df["ga_session_id"].astype(str)
+    return df
+
+if __name__ == "__main__":
+    df = load_ga4_from_bigquery(
+        start_date="",
+        end_date="",
+        limit_rows=10
+    )
+
+    print(df.head())
